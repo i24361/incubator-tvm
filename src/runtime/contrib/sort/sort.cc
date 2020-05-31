@@ -57,8 +57,14 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort_nms").set_body([](TVMArgs args, TV
   bool is_ascend = args[4];
 
   auto dtype = input->dtype;
-  auto data_ptr = static_cast<float*>(input->data);
-  auto sort_num_ptr = static_cast<int32_t*>(sort_num->data);
+
+  auto data_ptr_tmp = static_cast<int64_t *>(input->data);
+  auto data_ptr = reinterpret_cast<float *>(*data_ptr_tmp);
+  auto sort_num_ptr_tmp = static_cast<int64_t *>(sort_num->data);
+  auto sort_num_ptr = reinterpret_cast<int32_t *>(*sort_num_ptr_tmp);
+  auto output_data_ptr_tmp = static_cast<int64_t *>(output->data);
+  auto output_data_ptr = reinterpret_cast<int32_t *>(*output_data_ptr_tmp);
+
   std::vector<std::pair<int32_t, float>> sorter;
   int64_t axis_mul_before = 1;
   int64_t axis_mul_after = 1;
@@ -117,8 +123,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort_nms").set_body([](TVMArgs args, TV
 #endif
       }
       for (int32_t k = 0; k < input->shape[axis]; ++k) {
-        *(static_cast<int32_t*>(output->data) + base_idx + k * axis_mul_after) =
-            k < static_cast<int32_t>(sorter.size()) ? sorter[k].first : k;
+        *(output_data_ptr + base_idx + k * axis_mul_after)
+            = k < static_cast<int32_t>(sorter.size()) ? sorter[k].first : k;
       }
     }
   }

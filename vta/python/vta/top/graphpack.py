@@ -38,6 +38,8 @@ def _to_shape(shape):
 def _pack_batch_channel(data, dshape, bfactor, cfactor):
     """Pack the data channel dimension.
     """
+    # data = op.nn.max_pool2d(data, pool_size=[3, 3], strides=[2, 2], padding=[1, 1])
+
     assert int(dshape[0]) % bfactor == 0
     assert int(dshape[1]) % cfactor == 0
     data = op.reshape(data,
@@ -54,6 +56,7 @@ def _unpack_batch_channel(data, old_shape):
     """
     data = op.transpose(data, axes=(0, 4, 1, 5, 2, 3))
     data = op.reshape(data, newshape=old_shape)
+    # data = op.nn.global_avg_pool2d(data)
     return data
 
 
@@ -193,6 +196,9 @@ class ExprPack(ExprMutator):
         self.pad = op.op.get("nn.pad")
         self.upsampling = op.op.get("nn.upsampling")
         self.reshape = op.op.get("reshape")
+        self.max_pool2d = op.op.get("nn.max_pool2d")
+        self.global_avg_pool2d = op.op.get("nn.global_avg_pool2d")
+        self.relu = op.op.get("nn.relu")
         self.number_of_conv2d = 0
         super().__init__()
 
@@ -205,6 +211,13 @@ class ExprPack(ExprMutator):
         args = [self.visit(arg) for arg in call.args]
 
         # Start and stop cases.
+        ###
+        if call.op == self.max_pool2d:
+            assert not self.start_pack
+            self.start_pack = True
+            data = op.nn.max_pool2d(args[0], pool_size=[3, 3], strides=[2, 2], padding=[1, 1])
+            return _pack_batch_channel(data, oshape, self.bfactor, self.cfactor)
+        ### Modified 4 30
         if call.op == self.bitpack_start:
             assert not self.start_pack
             self.start_pack = True
@@ -217,6 +230,13 @@ class ExprPack(ExprMutator):
                 return _unpack_batch_channel(data, data_shape)
         if self.start_pack:
             # Operator cases
+            ###
+            if call.op == self.relu and  self.number_of_conv2d == 42:#19 -> resnet18 42 -> RCNN
+                self.start_pack = False
+                data = op.nn.relu(args[0])
+                data_shape = _get_tensor_shape(call.args[0])
+                return _unpack_batch_channel(data, data_shape)
+            ### Modified 4 30
             if call.op == self.conv2d and odtype == 'int32':
                 self.number_of_conv2d += 1
                 assert 8 % self.weight_bits == 0
@@ -456,7 +476,9 @@ def graph_pack(expr,
     """
     assert isinstance(expr, relay.Function)
     assert ((start_name != stop_name) or (start_name_idx < stop_name_idx))
-    expr = get_subgraph(expr, start_name, stop_name, start_name_idx, stop_name_idx, count_meta)
+    ###
+    # expr = get_subgraph(expr, start_name, stop_name, start_name_idx, stop_name_idx, count_meta)
+    ### modified 4 30
     expr = run_opt_pass(expr, transform.InferType())
     packer = ExprPack(
         bfactor, cfactor,
