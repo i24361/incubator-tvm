@@ -375,11 +375,14 @@ std::pair<std::function<void()>, std::shared_ptr<GraphRuntime::OpArgs> > GraphRu
   tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, true);
   CHECK(pf != nullptr) << "no such function in module: " << param.func_name;
 
-  auto fexec = [arg_ptr, pf]() {
+  auto fexec = [param, arg_ptr, pf]() {
+    printf("%s begin\n",param.func_name.c_str());
+    auto tmp = time(NULL);
     TVMRetValue rv;
     TVMArgs targs(arg_ptr->arg_values.data(), arg_ptr->arg_tcodes.data(),
                   static_cast<int>(arg_ptr->arg_values.size()));
     pf.CallPacked(targs, &rv);
+    printf("%s end with %ld\n",param.func_name.c_str(),time(NULL)-tmp);
   };
   return {fexec, arg_ptr};
 }

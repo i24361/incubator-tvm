@@ -50,6 +50,7 @@ bool CompareDescend(const std::pair<int64_t, DType>& lhs, const std::pair<int64_
 // and sort axis is dk. sort_num should have dimension of
 // (d1, d2, ..., d(k-1), d(k+1), ..., dn).
 TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort_nms").set_body([](TVMArgs args, TVMRetValue* ret) {
+  printf("argsort_nms: ");
   DLTensor* input = args[0];
   DLTensor* sort_num = args[1];
   DLTensor* output = args[2];
@@ -65,6 +66,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort_nms").set_body([](TVMArgs args, TV
   auto output_data_ptr_tmp = static_cast<int64_t *>(output->data);
   auto output_data_ptr = reinterpret_cast<int32_t *>(*output_data_ptr_tmp);
 
+  printf("%d\n",*sort_num_ptr);
   std::vector<std::pair<int32_t, float>> sorter;
   int64_t axis_mul_before = 1;
   int64_t axis_mul_after = 1;
@@ -128,6 +130,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort_nms").set_body([](TVMArgs args, TV
       }
     }
   }
+  printf("argsort_nms end\n");
 });
 
 template <typename DataType, typename OutType>
