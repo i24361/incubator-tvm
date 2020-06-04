@@ -38,8 +38,6 @@ def _to_shape(shape):
 def _pack_batch_channel(data, dshape, bfactor, cfactor):
     """Pack the data channel dimension.
     """
-    # data = op.nn.max_pool2d(data, pool_size=[3, 3], strides=[2, 2], padding=[1, 1])
-
     assert int(dshape[0]) % bfactor == 0
     assert int(dshape[1]) % cfactor == 0
     data = op.reshape(data,
@@ -56,7 +54,6 @@ def _unpack_batch_channel(data, old_shape):
     """
     data = op.transpose(data, axes=(0, 4, 1, 5, 2, 3))
     data = op.reshape(data, newshape=old_shape)
-    # data = op.nn.global_avg_pool2d(data)
     return data
 
 
@@ -199,7 +196,11 @@ class ExprPack(ExprMutator):
         self.max_pool2d = op.op.get("nn.max_pool2d")
         self.global_avg_pool2d = op.op.get("nn.global_avg_pool2d")
         self.relu = op.op.get("nn.relu")
-        self.number_of_conv2d = 0
+        self.adaptive_avg_pool2d = op.op.get("nn.adaptive_avg_pool2d")
+        self.cast = op.op.get('cast')
+        self.roi_align = op.op.get('vision.roi_align')
+        self.layer_of_conv2d = 0
+        self.num_of_cast = 0
         super().__init__()
 
     def visit_call(self, call):
@@ -212,10 +213,23 @@ class ExprPack(ExprMutator):
 
         # Start and stop cases.
         ###
+        if call.op == self.conv2d_transpose or call.op == self.conv2d:
+            self.layer_of_conv2d += 1
+            self.num_of_cast = 0
+
+        if call.op == self.cast:
+            self.num_of_cast += 1
+
         if call.op == self.max_pool2d:
             assert not self.start_pack
             self.start_pack = True
             data = op.nn.max_pool2d(args[0], pool_size=[3, 3], strides=[2, 2], padding=[1, 1])
+            return _pack_batch_channel(data, oshape, self.bfactor, self.cfactor)
+
+        if call.op == self.roi_align:
+            assert not self.start_pack
+            self.start_pack = True
+            data = relay.Call(op.op.get('vision.roi_align'), [args[0],args[1]], call.attrs)
             return _pack_batch_channel(data, oshape, self.bfactor, self.cfactor)
         ### Modified 4 30
         if call.op == self.bitpack_start:
@@ -231,14 +245,13 @@ class ExprPack(ExprMutator):
         if self.start_pack:
             # Operator cases
             ###
-            if call.op == self.relu and  self.number_of_conv2d == 42:#19 -> resnet18 42 -> RCNN
+            if call.op == self.relu and (self.layer_of_conv2d == 43 or self.layer_of_conv2d == 56):#20 -> resnet18 43 -> RCNN
                 self.start_pack = False
                 data = op.nn.relu(args[0])
                 data_shape = _get_tensor_shape(call.args[0])
                 return _unpack_batch_channel(data, data_shape)
             ### Modified 4 30
             if call.op == self.conv2d and odtype == 'int32':
-                self.number_of_conv2d += 1
                 assert 8 % self.weight_bits == 0
                 w_lanes = 8 // self.weight_bits
                 data_layout = "NCHW%dn%dc" % (self.bfactor, self.cfactor)
@@ -272,7 +285,6 @@ class ExprPack(ExprMutator):
                 return conv2d
 
             if call.op == self.conv2d_transpose and odtype == 'int32':
-                self.number_of_conv2d += 1
                 assert 8 % self.weight_bits == 0
                 w_lanes = 8 // self.weight_bits
                 if self.start_pack:

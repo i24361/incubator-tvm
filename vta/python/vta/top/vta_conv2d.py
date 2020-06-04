@@ -142,9 +142,9 @@ def schedule_conv2d_packed(cfg, outs):
 
     # tile
     x_bo, x_co, x_i, x_j, x_bi, x_ci = s[output].op.axis
-    x_co0, x_co1 = cfg['tile_co'].apply(s, output, x_co)
-    x_i0, x_i1 = cfg['tile_h'].apply(s, output, x_i)
-    x_j0, x_j1 = cfg['tile_w'].apply(s, output, x_j)
+    x_co0, x_co1 = s[output].split(x_co, factor=4) #cfg['tile_co'].apply(s, output, x_co)
+    x_i0, x_i1 = s[output].split(x_i, factor=1) #cfg['tile_h'].apply(s, output, x_i)
+    x_j0, x_j1 = s[output].split(x_j, factor=1) #cfg['tile_w'].apply(s, output, x_j)
     s[output].reorder(x_bo, x_i0, x_co0, x_j0, x_co1, x_i1, x_j1, x_bi, x_ci)
     store_pt = x_j0
 
