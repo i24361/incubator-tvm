@@ -253,6 +253,35 @@ TVM_DLL int VTADepPop(VTACommandHandle cmd, int from_qid, int to_qid);
  */
 TVM_DLL void VTASynchronize(VTACommandHandle cmd, uint32_t wait_cycles);
 
+/*!
+ * \brief NMS Hardware Acceleration Suport 
+ * \param cmd The VTA command handle.
+ * \param wait_cycles The limit of poll cycles.
+ * \return 0 if success.
+ */
+TVM_DLL int VTAHardwareAcceleratorInit(uint32_t max_output_size,
+                                        uint32_t iou_threshold,
+                                        uint32_t force_suppress,
+                                        uint32_t top_k,
+                                        uint32_t coord_start,
+                                        uint32_t score_index,
+                                        uint32_t id_index,
+                                        uint32_t invalid_to_bottom,
+                                        uint32_t wait_cycles);
+
+
+/*!
+ * \brief NMS Hardware Acceleration Suport 
+ * \param data : tvm.te.Tensor
+ *  3-D tensor with shape [batch_size, num_anchors, 6] or [batch_size, num_anchors, 5].
+ * \param valid_count : tvm.te.Tensor
+ *  1-D tensor for valid number of boxes.
+ * \param wait_cycles The limit of poll cycles.
+ * \return nullptr if fail and te.Tensor if success.
+ */
+TVM_DLL VTACommandHandle VTANonMaxSuppression(VTACommandHandle data, VTACommandHandle valid_count, uint32_t wait_cycles);
+
+
 #ifdef __cplusplus
 }
 #endif

@@ -360,22 +360,22 @@ def non_max_suppression(data, valid_count, max_output_size=-1,
         tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), ctx)
         f(tvm_data, tvm_valid_count, tvm_out)
     """
-    batch_size = data.shape[0]
-    num_anchors = data.shape[1]
-    score_axis = score_index
-    score_shape = (batch_size, num_anchors)
-    score_tensor = te.compute(score_shape, lambda i, j: data[i, j, score_axis])
-    sort_tensor = argsort(score_tensor, valid_count=valid_count, axis=1, is_ascend=False)
-    out, box_indices = hybrid_nms(data, sort_tensor, valid_count,
-                                  tvm.tir.const(max_output_size, dtype="int32"),
-                                  tvm.tir.const(iou_threshold, dtype=data.dtype),
-                                  tvm.tir.const(force_suppress, dtype="bool"),
-                                  tvm.tir.const(top_k, dtype="int32"),
-                                  tvm.tir.const(coord_start, dtype="int32"),
-                                  tvm.tir.const(id_index, dtype="int32"),
-                                  tvm.tir.const(score_index, dtype="int32"),
-                                  zero=tvm.tir.const(0, dtype=data.dtype),
-                                  one=tvm.tir.const(1, dtype=data.dtype))
+    iou_threshold = iou_threshold*100
+    errno = te.extern([max_output_size,
+                        iou_threshold,
+                        force_suppress,
+                        top_k,
+                        coord_start,
+                        score_index,
+                        id_index,
+                        invalid_to_bottom],
+                        lambda ins, outs: tvm.tir.call_extern(
+                            "VTAHardwareAcceleratorInit", ins[0], ins[1],ins[2], 
+                            ins[3], ins[4], ins[5], ins[6], ins[7], ins[8], 
+                            1000))
+    out = te.extern([data, valid_count],
+                    lambda ins, outs: tvm.tir.call_extern(
+                        "VTANonMaxSuppression", ins[0], ins[1], 1000)
     if not return_indices and invalid_to_bottom:
         out = hybrid_rearrange_out(out, one=tvm.tir.const(1, dtype=data.dtype))
 
