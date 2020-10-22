@@ -113,7 +113,7 @@ elseif(PYTHON)
       target_compile_definitions(vta PUBLIC ${__strip_def})
     endforeach()
     if(${VTA_TARGET} STREQUAL "pynq" OR
-       ${VTA_TARGET} STREQUAL "ultra96"
+       ${VTA_TARGET} STREQUAL "ultra96" OR
        ${VTA_TARGET} STREQUAL "zcu104")
       target_link_libraries(vta ${__cma_lib})
     elseif(${VTA_TARGET} STREQUAL "de10nano")  # DE10-Nano rules
