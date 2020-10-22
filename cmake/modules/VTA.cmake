@@ -96,7 +96,8 @@ elseif(PYTHON)
     file(GLOB FPGA_RUNTIME_SRCS vta/runtime/*.cc)
     # Rules for Zynq-class FPGAs with pynq OS support (see pynq.io)
     if(${VTA_TARGET} STREQUAL "pynq" OR
-       ${VTA_TARGET} STREQUAL "ultra96")
+       ${VTA_TARGET} STREQUAL "ultra96" OR
+       ${VTA_TARGET} STREQUAL "zcu104")
       list(APPEND FPGA_RUNTIME_SRCS ${VTA_HW_PATH}/src/pynq/pynq_driver.cc)
       # Rules for Pynq v2.4
       find_library(__cma_lib NAMES cma PATH /usr/lib)
@@ -112,7 +113,8 @@ elseif(PYTHON)
       target_compile_definitions(vta PUBLIC ${__strip_def})
     endforeach()
     if(${VTA_TARGET} STREQUAL "pynq" OR
-       ${VTA_TARGET} STREQUAL "ultra96")
+       ${VTA_TARGET} STREQUAL "ultra96"
+       ${VTA_TARGET} STREQUAL "zcu104")
       target_link_libraries(vta ${__cma_lib})
     elseif(${VTA_TARGET} STREQUAL "de10nano")  # DE10-Nano rules
      #target_compile_definitions(vta PUBLIC VTA_MAX_XFER=2097152) # (1<<21)
