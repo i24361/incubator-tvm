@@ -134,3 +134,23 @@ def dense_strategy_vta(attrs, inputs, out_type, target):
     # If it's not packed, run on ARM CPU
     arm_tgt = tvm.target.arm_cpu(target.model)
     return _strategy.x86.dense_strategy_cpu(attrs, inputs, out_type, arm_tgt)
+
+
+# Faster R-CNN support
+@_strategy.nms_strategy.register("vta")
+def nms_strategy_vta(attrs, inputs, out_type, target):
+    """nms vta strategy"""
+    print("use vta nms strategy")
+    strategy = OpStrategy()
+    strategy.add_implementation(_strategy.wrap_compute_nms(topi.vision.non_max_suppression),
+                                _strategy.wrap_topi_schedule(topi.generic.schedule_nms),
+                                name="nms.vta")
+    return strategy
+
+
+
+
+
+
+
+
