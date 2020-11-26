@@ -1,0 +1,339 @@
+hht@ubuntu:~/tvm/vta/tutorials/vta_compile_stream$ python3 simple_net.py 
+***************workload created***************
+def @main(%data: Tensor[(1, 16, 1, 1), float32], %weight: Tensor[(16, 16, 3, 3), float32]) -> Tensor[(1, 16, 1, 1), float32] {
+  nn.conv2d(%data, %weight, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3]) /* ty=Tensor[(1, 16, 1, 1), float32] */
+}
+
+def @main(%data: Tensor[(1, 16, 1, 1), float32]) -> Tensor[(1, 16, 1, 1), float32] {
+  %0 = multiply(%data, 16f /* ty=float32 */) /* ty=Tensor[(1, 16, 1, 1), float32] */;
+  %1 = round(%0) /* ty=Tensor[(1, 16, 1, 1), float32] */;
+  %2 = clip(%1, a_min=-127f, a_max=127f) /* ty=Tensor[(1, 16, 1, 1), float32] */;
+  %3 = cast(%2, dtype="int8") /* ty=Tensor[(1, 16, 1, 1), int8] */;
+  %4 = nn.conv2d(%3, meta[relay.Constant][0] /* ty=Tensor[(16, 16, 3, 3), int8] */, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3], out_dtype="int32") /* ty=Tensor[(1, 16, 1, 1), int32] */;
+  %5 = add(%4, 256 /* ty=int32 */) /* ty=Tensor[(1, 16, 1, 1), int32] */;
+  %6 = right_shift(%5, 9 /* ty=int32 */) /* ty=Tensor[(1, 16, 1, 1), int32] */;
+  %7 = clip(%6, a_min=-127f, a_max=127f) /* ty=Tensor[(1, 16, 1, 1), int32] */;
+  %8 = cast(%7, dtype="int8") /* ty=Tensor[(1, 16, 1, 1), int8] */;
+  %9 = annotation.stop_fusion(%8) /* ty=Tensor[(1, 16, 1, 1), int8] */;
+  %10 = cast(%9, dtype="float32") /* ty=Tensor[(1, 16, 1, 1), float32] */;
+  multiply(%10, 0.0625f /* ty=float32 */) /* ty=Tensor[(1, 16, 1, 1), float32] */
+}
+
+
+fn (%data: Tensor[(1, 16, 1, 1), float32]) -> Tensor[(1, 16, 1, 1), float32] {
+  %0 = multiply(%data, 16f /* ty=float32 */) /* ty=Tensor[(1, 16, 1, 1), float32] */;
+  %1 = reshape(%0, newshape=[1, 1, 1, 16, 1, 1]) /* ty=Tensor[(1, 1, 1, 16, 1, 1), float32] */;
+  %2 = transpose(%1, axes=[0, 2, 4, 5, 1, 3]) /* ty=Tensor[(1, 1, 1, 1, 1, 16), float32] */;
+  %3 = round(%2) /* ty=Tensor[(1, 1, 1, 1, 1, 16), float32] */;
+  %4 = clip(%3, a_min=-127f, a_max=127f) /* ty=Tensor[(1, 1, 1, 1, 1, 16), float32] */;
+  %5 = cast(%4, dtype="int8") /* ty=Tensor[(1, 1, 1, 1, 1, 16), int8] */;
+  %6 = reshape(meta[relay.Constant][0] /* ty=Tensor[(16, 16, 3, 3), int8] */, newshape=[1, 16, 1, 16, 3, 3]) /* ty=Tensor[(1, 16, 1, 16, 3, 3), int8] */;
+  %7 = transpose(%6, axes=[0, 2, 4, 5, 1, 3]) /* ty=Tensor[(1, 1, 3, 3, 16, 16), int8] */;
+  %8 = nn.conv2d(%5, %7, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3], data_layout="NCHW1n16c", kernel_layout="OIHW16o16i", out_dtype="int32") /* ty=Tensor[(1, 1, 1, 1, 1, 16), int32] */;
+  %9 = add(%8, 256 /* ty=int32 */) /* ty=Tensor[(1, 1, 1, 1, 1, 16), int32] */;
+  %10 = right_shift(%9, 9 /* ty=int32 */) /* ty=Tensor[(1, 1, 1, 1, 1, 16), int32] */;
+  %11 = clip(%10, a_min=-127f, a_max=127f) /* ty=Tensor[(1, 1, 1, 1, 1, 16), int32] */;
+  %12 = cast(%11, dtype="int8") /* ty=Tensor[(1, 1, 1, 1, 1, 16), int8] */;
+  %13 = copy(%12) /* ty=Tensor[(1, 1, 1, 1, 1, 16), int8] */;
+  %14 = annotation.stop_fusion(%13) /* ty=Tensor[(1, 1, 1, 1, 1, 16), int8] */;
+  %15 = transpose(%14, axes=[0, 4, 1, 5, 2, 3]) /* ty=Tensor[(1, 1, 1, 16, 1, 1), int8] */;
+  %16 = reshape(%15, newshape=[1, 16, 1, 1]) /* ty=Tensor[(1, 16, 1, 1), int8] */;
+  %17 = cast(%16, dtype="float32") /* ty=Tensor[(1, 16, 1, 1), float32] */;
+  multiply(%17, 0.0625f /* ty=float32 */) /* ty=Tensor[(1, 16, 1, 1), float32] */
+}
+
+***************build started***************
+[05:26:03] /home/hht/tvm/src/ir/transform.cc:507: PrintIR():
+#[version = "0.0.5"]
+primfn(placeholder_1: handle, T_multiply_1: handle) -> ()
+  attr = {"global_symbol": "fused_transpose_reshape_cast_multiply", "tir.noalias": True}
+  buffers = {T_multiply: Buffer(T_multiply_2: Pointer(float32), float32, [1, 16, 1, 1], []),
+             placeholder: Buffer(placeholder_2: Pointer(int8), int8, [1, 1, 1, 1, 1, 16], [])}
+  buffer_map = {placeholder_1: placeholder, T_multiply_1: T_multiply} {
+  attr [T_multiply] "realize_scope" = "";
+  realize(T_multiply, [0:1, 0:16, 0:1, 0:1], True {
+    for (ax0.ax1.fused: int32, 0, 16) "parallel" {
+      T_multiply[floordiv(ax0.ax1.fused, 16), floormod(ax0.ax1.fused, 16), 0, 0] = (cast(float32, placeholder[0, 0, 0, 0, 0, floormod(((((floordiv(ax0.ax1.fused, 16)*16) + floormod(ax0.ax1.fused, 16)) + 0) + 0), 16)])*0.0625f32)
+    }
+  })
+}
+
+/* For debugging purposes the metadata section has been omitted.
+ * If you would like to see the full metadata section you can set the 
+ * option to `True` when invoking `astext`. 
+ */
+[05:26:03] /home/hht/tvm/src/ir/transform.cc:507: PrintIR():
+#[version = "0.0.5"]
+primfn(placeholder_1: handle, T_identity_1: handle) -> ()
+  attr = {"global_symbol": "fused_copy", "tir.noalias": True}
+  buffers = {T_identity: Buffer(T_identity_2: Pointer(int8), int8, [1, 1, 1, 1, 1, 16], []),
+             placeholder: Buffer(placeholder_2: Pointer(int8), int8, [1, 1, 1, 1, 1, 16], [])}
+  buffer_map = {placeholder_1: placeholder, T_identity_1: T_identity} {
+  attr [T_identity] "realize_scope" = "";
+  realize(T_identity, [0:1, 0:1, 0:1, 0:1, 0:1, 0:16], True {
+    for (ax5.inner: int32, 0, 16) "vectorized" {
+      T_identity[0, 0, 0, 0, 0, ax5.inner] = placeholder[0, 0, 0, 0, 0, ax5.inner]
+    }
+  })
+}
+
+/* For debugging purposes the metadata section has been omitted.
+ * If you would like to see the full metadata section you can set the 
+ * option to `True` when invoking `astext`. 
+ */
+Cannot find config for target=ext_dev -keys=vta,cpu -device=vta -model=sim_1x16_i8w8a32_15_15_18_17, workload=('conv2d_packed.vta', ('TENSOR', (1, 1, 1, 1, 1, 16), 'int8'), ('TENSOR', (1, 1, 3, 3, 16, 16), 'int8'), (1, 1), (1, 1, 1, 1), (1, 1), 'NCHW1n16c', 'int32'). A fallback configuration is used, which may bring great performance regression.
+[05:26:03] /home/hht/tvm/src/ir/transform.cc:507: PrintIR():
+#[version = "0.0.5"]
+primfn(placeholder_2: handle, placeholder_3: handle, T_cast_1: handle) -> ()
+  attr = {"global_symbol": "fused_nn_conv2d_add_right_shift_clip_cast", "tir.noalias": True}
+  buffers = {T_cast: Buffer(T_cast_2: Pointer(int8), int8, [1, 1, 1, 1, 1, 16], []),
+             placeholder: Buffer(placeholder_4: Pointer(int8), int8, [1, 1, 1, 1, 1, 16], []),
+             placeholder_1: Buffer(placeholder_5: Pointer(int8), int8, [1, 1, 3, 3, 16, 16], [])}
+  buffer_map = {placeholder_2: placeholder, placeholder_3: placeholder_1, T_cast_1: T_cast} {
+  attr [T_cast] "realize_scope" = "";
+  realize(T_cast, [0:1, 0:1, 0:1, 0:1, 0:1, 0:16], True {
+    attr [res: Buffer(res_1: Pointer(int32), int32, [1, 1, 1, 1, 1, 16], [])] "realize_scope" = "local.acc_buffer";
+    realize(res, [0:1, 0:1, 0:1, 0:1, 0:1, 0:16], True {
+       {
+        attr [[local.acc_buffer: Buffer(local.acc_buffer_1: Pointer(int32), int32, [1, 16], [], elem_offset=local.acc_buffer_elem_offset: int32, scope="local.acc_buffer", align=16, offset_factor=16), res]] "buffer_bind_scope" = @tir.tvm_tuple(0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 16, dtype=handle);
+        attr [IterVar(vta: int32, (nullptr), "ThreadIndex", "vta")] "coproc_scope" = 2;
+        attr [IterVar(vta, (nullptr), "ThreadIndex", "vta")] "coproc_uop_scope" = "VTAPushGEMMOp";
+        @tir.vta.uop_push(0, 1, @tir.tvm_access_ptr(@tir.type_annotation(, dtype=int32), local.acc_buffer_1, local.acc_buffer_elem_offset, 16, 3, dtype=int32), 0, 0, 0, 0, 0, dtype=int32)
+        attr [pad_data: Buffer(pad_data_1: Pointer(int8), int8, [1, 1, 3, 3, 1, 16], [])] "realize_scope" = "local.inp_buffer";
+        realize(pad_data, [0:1, 0:1, 0:3, 0:3, 0:1, 0:16], True {
+          attr [IterVar(i0: int32, (nullptr), "DataPar", "")] "pragma_dma_copy" = 1;
+          for (i2: int32, 0, 3) {
+            for (i3: int32, 0, 3) {
+              for (i5: int32, 0, 16) {
+                pad_data[0, 0, i2, i3, 0, i5] = @tir.if_then_else(((((i2 >= 1) && (i2 < 2)) && (i3 >= 1)) && (i3 < 2)), placeholder[0, 0, (i2 - 1), (i3 - 1), 0, i5], 0i8, dtype=int8)
+              }
+            }
+          }
+          attr [placeholder.local.wgt_buffer: Buffer(placeholder.local.wgt_buffer_1: Pointer(int8), int8, [1, 1, 3, 3, 16, 16], [])] "realize_scope" = "local.wgt_buffer";
+          realize(placeholder.local.wgt_buffer, [0:1, 0:1, 0:3, 0:3, 0:16, 0:16], True {
+            attr [IterVar(ax0: int32, (nullptr), "DataPar", "")] "pragma_dma_copy" = 1;
+            for (ax2: int32, 0, 3) {
+              for (ax3: int32, 0, 3) {
+                for (ax4: int32, 0, 16) {
+                  for (ax5: int32, 0, 16) {
+                    placeholder.local.wgt_buffer[0, 0, ax2, ax3, ax4, ax5] = placeholder_1[0, 0, ax2, ax3, ax4, ax5]
+                  }
+                }
+              }
+            }
+            for (d_j: int32, 0, 3) {
+              for (d_i: int32, 0, 3) {
+                attr [[local.inp_buffer: Buffer(local.inp_buffer_1: Pointer(int8), int8, [1, 16], [], elem_offset=local.inp_buffer_elem_offset: int32, scope="local.inp_buffer", align=16, offset_factor=16), pad_data]] "buffer_bind_scope" = @tir.tvm_tuple(0, 1, 0, 1, d_i, 1, d_j, 1, 0, 1, 0, 16, dtype=handle);
+                attr [[local.wgt_buffer: Buffer(local.wgt_buffer_1: Pointer(int8), int8, [16, 16], [], elem_offset=local.wgt_buffer_elem_offset: int32, scope="local.wgt_buffer", align=256, offset_factor=256), placeholder.local.wgt_buffer]] "buffer_bind_scope" = @tir.tvm_tuple(0, 1, 0, 1, d_i, 1, d_j, 1, 0, 16, 0, 16, dtype=handle);
+                attr [[local.acc_buffer, res]] "buffer_bind_scope" = @tir.tvm_tuple(0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 16, dtype=handle);
+                attr [IterVar(vta, (nullptr), "ThreadIndex", "vta")] "coproc_scope" = 2;
+                attr [IterVar(vta, (nullptr), "ThreadIndex", "vta")] "coproc_uop_scope" = "VTAPushGEMMOp";
+                @tir.vta.uop_push(0, 0, @tir.tvm_access_ptr(@tir.type_annotation(, dtype=int32), local.acc_buffer_1, local.acc_buffer_elem_offset, 16, 3, dtype=int32), @tir.tvm_access_ptr(@tir.type_annotation(, dtype=int8), local.inp_buffer_1, local.inp_buffer_elem_offset, 16, 1, dtype=int32), @tir.tvm_access_ptr(@tir.type_annotation(, dtype=int8), local.wgt_buffer_1, local.wgt_buffer_elem_offset, 256, 1, dtype=int32), 0, 0, 0, dtype=int32)
+              }
+            }
+          })
+        })
+      }
+      attr [T_add: Buffer(T_add_1: Pointer(int32), int32, [1, 1, 1, 1, 1, 16], [])] "realize_scope" = "local.acc_buffer";
+      realize(T_add, [0:1, 0:1, 0:1, 0:1, 0:1, 0:16], True {
+        attr [IterVar(ax0_1: int32, (nullptr), "DataPar", "")] "pragma_alu" = 1;
+        for (ax5_1: int32, 0, 16) {
+          T_add[0, 0, 0, 0, 0, ax5_1] = (res[0, 0, 0, 0, 0, ax5_1] + 256)
+        }
+        attr [T_right_shift: Buffer(T_right_shift_1: Pointer(int32), int32, [1, 1, 1, 1, 1, 16], [])] "realize_scope" = "local.acc_buffer";
+        realize(T_right_shift, [0:1, 0:1, 0:1, 0:1, 0:1, 0:16], True {
+          attr [IterVar(ax0_2: int32, (nullptr), "DataPar", "")] "pragma_alu" = 1;
+          for (ax5_2: int32, 0, 16) {
+            T_right_shift[0, 0, 0, 0, 0, ax5_2] = @tir.shift_right(T_add[0, 0, 0, 0, 0, ax5_2], 9, dtype=int32)
+          }
+          attr [clipA: Buffer(clipA_1: Pointer(int32), int32, [1, 1, 1, 1, 1, 16], [])] "realize_scope" = "local.acc_buffer";
+          realize(clipA, [0:1, 0:1, 0:1, 0:1, 0:1, 0:16], True {
+            attr [IterVar(i0_1: int32, (nullptr), "DataPar", "")] "pragma_alu" = 1;
+            for (i5_1: int32, 0, 16) {
+              clipA[0, 0, 0, 0, 0, i5_1] = min(T_right_shift[0, 0, 0, 0, 0, i5_1], 127)
+            }
+            attr [clipB: Buffer(clipB_1: Pointer(int32), int32, [1, 1, 1, 1, 1, 16], [])] "realize_scope" = "local.acc_buffer";
+            realize(clipB, [0:1, 0:1, 0:1, 0:1, 0:1, 0:16], True {
+              attr [IterVar(i0_2: int32, (nullptr), "DataPar", "")] "pragma_alu" = 1;
+              for (i5_2: int32, 0, 16) {
+                clipB[0, 0, 0, 0, 0, i5_2] = max(clipA[0, 0, 0, 0, 0, i5_2], -127)
+              }
+              attr [IterVar(ax1.inner: int32, (nullptr), "DataPar", "")] "pragma_dma_copy" = 1;
+              for (ax5_3: int32, 0, 16) {
+                T_cast[0, 0, 0, 0, 0, ax5_3] = cast(int8, clipB[0, 0, 0, 0, 0, ax5_3])
+              }
+            })
+          })
+        })
+      })
+    })
+  })
+}
+
+/* For debugging purposes the metadata section has been omitted.
+ * If you would like to see the full metadata section you can set the 
+ * option to `True` when invoking `astext`. 
+ */
+[05:26:03] /home/hht/tvm/src/ir/transform.cc:507: PrintIR():
+#[version = "0.0.5"]
+primfn(placeholder_1: handle, T_cast_1: handle) -> ()
+  attr = {"global_symbol": "fused_multiply_reshape_transpose_round_clip_cast", "tir.noalias": True}
+  buffers = {T_cast: Buffer(T_cast_2: Pointer(int8), int8, [1, 1, 1, 1, 1, 16], []),
+             placeholder: Buffer(placeholder_2: Pointer(float32), float32, [1, 16, 1, 1], [])}
+  buffer_map = {placeholder_1: placeholder, T_cast_1: T_cast} {
+  attr [T_cast] "realize_scope" = "";
+  realize(T_cast, [0:1, 0:1, 0:1, 0:1, 0:1, 0:16], True {
+    for (ax5.inner: int32, 0, 16) "vectorized" {
+      T_cast[0, 0, 0, 0, 0, ax5.inner] = cast(int8, max(min(@tir.round((placeholder[0, floormod(((((((0 + 0) + 0)*16) + ax5.inner) + 0) + 0), 16), 0, 0]*16f32), dtype=float32), 127f32), -127f32))
+    }
+  })
+}
+
+/* For debugging purposes the metadata section has been omitted.
+ * If you would like to see the full metadata section you can set the 
+ * option to `True` when invoking `astext`. 
+ */
+***************build finished***************
+Module(llvm, 32cb348)
+There are 1 uops
+[0000]	 acc=0, inp=0, wgt=0
+
+There are 1 uops
+[0000]	 acc=0, inp=0, wgt=0
+
+There are 1 uops
+[0000]	 acc=0, inp=0, wgt=0
+
+There are 1 uops
+[0000]	 acc=0, inp=0, wgt=0
+
+There are 1 uops
+[0000]	 acc=0, inp=0, wgt=0
+
+There are 1 uops
+[0000]	 acc=0, inp=0, wgt=0
+
+There are 18 instructions
+INSTRUCTION 0: LOAD UOP
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	DRAM: 0x00001400, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 1: GEMM
+	dep - pop prev: 0, pop next: 0, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 2: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000200, SRAM:0x0000
+	y: size=1, pad=[1, 1]
+	x: size=1, stride=1, pad=[1, 1]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 3: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 4: LOAD UOP
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	DRAM: 0x00001401, SRAM:0x0001
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 5: GEMM
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 6: LOAD UOP
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	DRAM: 0x00001402, SRAM:0x0002
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 7: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 8: LOAD UOP
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	DRAM: 0x00001403, SRAM:0x0003
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 9: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 10: LOAD UOP
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	DRAM: 0x00001404, SRAM:0x0004
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 11: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 12: LOAD UOP
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	DRAM: 0x00001405, SRAM:0x0005
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 13: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 14: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000400, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 15: NOP-MEMORY-STAGE
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 16: NOP-COMPUTE-STAGE
+	dep - pop prev: 1, pop next: 1, push prev: 0, push next: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 17: FINISH
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+

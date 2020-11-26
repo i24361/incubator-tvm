@@ -193,14 +193,7 @@ class ExprPack(ExprMutator):
         self.pad = op.op.get("nn.pad")
         self.upsampling = op.op.get("nn.upsampling")
         self.reshape = op.op.get("reshape")
-        self.max_pool2d = op.op.get("nn.max_pool2d")
-        self.global_avg_pool2d = op.op.get("nn.global_avg_pool2d")
-        self.relu = op.op.get("nn.relu")
-        self.adaptive_avg_pool2d = op.op.get("nn.adaptive_avg_pool2d")
-        self.cast = op.op.get('cast')
-        self.roi_align = op.op.get('vision.roi_align')
-        self.layer_of_conv2d = 0
-        self.num_of_cast = 0
+        self.number_of_conv2d = 0
         super().__init__()
 
     def visit_call(self, call):
@@ -212,26 +205,6 @@ class ExprPack(ExprMutator):
         args = [self.visit(arg) for arg in call.args]
 
         # Start and stop cases.
-        ###
-        if call.op == self.conv2d_transpose or call.op == self.conv2d:
-            self.layer_of_conv2d += 1
-            self.num_of_cast = 0
-
-        if call.op == self.cast:
-            self.num_of_cast += 1
-
-        if call.op == self.max_pool2d:
-            assert not self.start_pack
-            self.start_pack = True
-            data = op.nn.max_pool2d(args[0], pool_size=[3, 3], strides=[2, 2], padding=[1, 1])
-            return _pack_batch_channel(data, oshape, self.bfactor, self.cfactor)
-
-        if call.op == self.roi_align:
-            assert not self.start_pack
-            self.start_pack = True
-            data = relay.Call(op.op.get('vision.roi_align'), [args[0],args[1]], call.attrs)
-            return _pack_batch_channel(data, oshape, self.bfactor, self.cfactor)
-        ### Modified 4 30
         if call.op == self.bitpack_start:
             assert not self.start_pack
             self.start_pack = True
@@ -244,14 +217,8 @@ class ExprPack(ExprMutator):
                 return _unpack_batch_channel(data, data_shape)
         if self.start_pack:
             # Operator cases
-            ###
-            if call.op == self.relu and (self.layer_of_conv2d == 43 or self.layer_of_conv2d == 56):#20 -> resnet18 43 -> RCNN
-                self.start_pack = False
-                data = op.nn.relu(args[0])
-                data_shape = _get_tensor_shape(call.args[0])
-                return _unpack_batch_channel(data, data_shape)
-            ### Modified 4 30
             if call.op == self.conv2d and odtype == 'int32':
+                self.number_of_conv2d += 1
                 assert 8 % self.weight_bits == 0
                 w_lanes = 8 // self.weight_bits
                 data_layout = "NCHW%dn%dc" % (self.bfactor, self.cfactor)
@@ -285,6 +252,7 @@ class ExprPack(ExprMutator):
                 return conv2d
 
             if call.op == self.conv2d_transpose and odtype == 'int32':
+                self.number_of_conv2d += 1
                 assert 8 % self.weight_bits == 0
                 w_lanes = 8 // self.weight_bits
                 if self.start_pack:
@@ -377,7 +345,7 @@ class ExprPack(ExprMutator):
                                         method,
                                         align_corners)
             elif call.op == self.reshape and len(input_types[0].shape) == 4:
-                data, _ = args
+                data, = args
                 data = op.transpose(data, axes=(0, 4, 1, 5, 2, 3))
                 return op.reshape(data, [int(x) for x in input_types[0].shape])
 
@@ -408,7 +376,7 @@ def get_subgraph(expr, start_name, stop_name, start_name_idx, stop_name_idx, cou
         if isinstance(anf, relay.expr.Let):
             value = anf.value
             if isinstance(value, relay.expr.Call):
-                if isinstance(value.op, relay.op.Op):
+                if isinstance(value.op, tvm.ir.Op):
                     if value.op.name == start_name and not start_found:
                         if operator_current_idx == start_name_idx or start_name_idx is None:
                             value = relay.expr.Call(bitpack_start, [value])
@@ -488,9 +456,7 @@ def graph_pack(expr,
     """
     assert isinstance(expr, relay.Function)
     assert ((start_name != stop_name) or (start_name_idx < stop_name_idx))
-    ###
-    # expr = get_subgraph(expr, start_name, stop_name, start_name_idx, stop_name_idx, count_meta)
-    ### modified 4 30
+    expr = get_subgraph(expr, start_name, stop_name, start_name_idx, stop_name_idx, count_meta)
     expr = run_opt_pass(expr, transform.InferType())
     packer = ExprPack(
         bfactor, cfactor,

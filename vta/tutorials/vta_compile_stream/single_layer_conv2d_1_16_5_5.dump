@@ -1,0 +1,2018 @@
+hht@ubuntu:~/tvm/vta/tutorials/vta_compile_stream$ python3 simple_net.py 
+***************workload created***************
+def @main(%data: Tensor[(1, 16, 5, 5), float32], %weight: Tensor[(16, 16, 3, 3), float32]) -> Tensor[(1, 16, 5, 5), float32] {
+  nn.conv2d(%data, %weight, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3]) /* ty=Tensor[(1, 16, 5, 5), float32] */
+}
+
+def @main(%data: Tensor[(1, 16, 5, 5), float32]) -> Tensor[(1, 16, 5, 5), float32] {
+  %0 = multiply(%data, 16f /* ty=float32 */) /* ty=Tensor[(1, 16, 5, 5), float32] */;
+  %1 = round(%0) /* ty=Tensor[(1, 16, 5, 5), float32] */;
+  %2 = clip(%1, a_min=-127f, a_max=127f) /* ty=Tensor[(1, 16, 5, 5), float32] */;
+  %3 = cast(%2, dtype="int8") /* ty=Tensor[(1, 16, 5, 5), int8] */;
+  %4 = nn.conv2d(%3, meta[relay.Constant][0] /* ty=Tensor[(16, 16, 3, 3), int8] */, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3], out_dtype="int32") /* ty=Tensor[(1, 16, 5, 5), int32] */;
+  %5 = add(%4, 256 /* ty=int32 */) /* ty=Tensor[(1, 16, 5, 5), int32] */;
+  %6 = right_shift(%5, 9 /* ty=int32 */) /* ty=Tensor[(1, 16, 5, 5), int32] */;
+  %7 = clip(%6, a_min=-127f, a_max=127f) /* ty=Tensor[(1, 16, 5, 5), int32] */;
+  %8 = cast(%7, dtype="int8") /* ty=Tensor[(1, 16, 5, 5), int8] */;
+  %9 = annotation.stop_fusion(%8) /* ty=Tensor[(1, 16, 5, 5), int8] */;
+  %10 = cast(%9, dtype="float32") /* ty=Tensor[(1, 16, 5, 5), float32] */;
+  multiply(%10, 0.0625f /* ty=float32 */) /* ty=Tensor[(1, 16, 5, 5), float32] */
+}
+
+
+fn (%data: Tensor[(1, 16, 5, 5), float32]) -> Tensor[(1, 16, 5, 5), float32] {
+  %0 = multiply(%data, 16f /* ty=float32 */) /* ty=Tensor[(1, 16, 5, 5), float32] */;
+  %1 = reshape(%0, newshape=[1, 1, 1, 16, 5, 5]) /* ty=Tensor[(1, 1, 1, 16, 5, 5), float32] */;
+  %2 = transpose(%1, axes=[0, 2, 4, 5, 1, 3]) /* ty=Tensor[(1, 1, 5, 5, 1, 16), float32] */;
+  %3 = round(%2) /* ty=Tensor[(1, 1, 5, 5, 1, 16), float32] */;
+  %4 = clip(%3, a_min=-127f, a_max=127f) /* ty=Tensor[(1, 1, 5, 5, 1, 16), float32] */;
+  %5 = cast(%4, dtype="int8") /* ty=Tensor[(1, 1, 5, 5, 1, 16), int8] */;
+  %6 = reshape(meta[relay.Constant][0] /* ty=Tensor[(16, 16, 3, 3), int8] */, newshape=[1, 16, 1, 16, 3, 3]) /* ty=Tensor[(1, 16, 1, 16, 3, 3), int8] */;
+  %7 = transpose(%6, axes=[0, 2, 4, 5, 1, 3]) /* ty=Tensor[(1, 1, 3, 3, 16, 16), int8] */;
+  %8 = nn.conv2d(%5, %7, padding=[1, 1, 1, 1], channels=16, kernel_size=[3, 3], data_layout="NCHW1n16c", kernel_layout="OIHW16o16i", out_dtype="int32") /* ty=Tensor[(1, 1, 5, 5, 1, 16), int32] */;
+  %9 = add(%8, 256 /* ty=int32 */) /* ty=Tensor[(1, 1, 5, 5, 1, 16), int32] */;
+  %10 = right_shift(%9, 9 /* ty=int32 */) /* ty=Tensor[(1, 1, 5, 5, 1, 16), int32] */;
+  %11 = clip(%10, a_min=-127f, a_max=127f) /* ty=Tensor[(1, 1, 5, 5, 1, 16), int32] */;
+  %12 = cast(%11, dtype="int8") /* ty=Tensor[(1, 1, 5, 5, 1, 16), int8] */;
+  %13 = copy(%12) /* ty=Tensor[(1, 1, 5, 5, 1, 16), int8] */;
+  %14 = annotation.stop_fusion(%13) /* ty=Tensor[(1, 1, 5, 5, 1, 16), int8] */;
+  %15 = transpose(%14, axes=[0, 4, 1, 5, 2, 3]) /* ty=Tensor[(1, 1, 1, 16, 5, 5), int8] */;
+  %16 = reshape(%15, newshape=[1, 16, 5, 5]) /* ty=Tensor[(1, 16, 5, 5), int8] */;
+  %17 = cast(%16, dtype="float32") /* ty=Tensor[(1, 16, 5, 5), float32] */;
+  multiply(%17, 0.0625f /* ty=float32 */) /* ty=Tensor[(1, 16, 5, 5), float32] */
+}
+
+***************build started***************
+[05:16:24] /home/hht/tvm/src/ir/transform.cc:507: PrintIR():
+#[version = "0.0.5"]
+primfn(placeholder_1: handle, T_multiply_1: handle) -> ()
+  attr = {"global_symbol": "fused_transpose_reshape_cast_multiply", "tir.noalias": True}
+  buffers = {T_multiply: Buffer(T_multiply_2: Pointer(float32), float32, [1, 16, 5, 5], []),
+             placeholder: Buffer(placeholder_2: Pointer(int8), int8, [1, 1, 5, 5, 1, 16], [])}
+  buffer_map = {placeholder_1: placeholder, T_multiply_1: T_multiply} {
+  attr [T_multiply] "realize_scope" = "";
+  realize(T_multiply, [0:1, 0:16, 0:5, 0:5], True {
+    for (ax0.ax1.fused: int32, 0, 16) "parallel" {
+      for (ax2: int32, 0, 5) {
+        for (ax3.inner: int32, 0, 5) "vectorized" {
+          T_multiply[floordiv(ax0.ax1.fused, 16), floormod(ax0.ax1.fused, 16), ax2, ax3.inner] = (cast(float32, placeholder[0, 0, floormod(floordiv(((((((floordiv(ax0.ax1.fused, 16)*16) + floormod(ax0.ax1.fused, 16))*5) + ax2)*5) + ax3.inner), 5), 5), floormod(((((((floordiv(ax0.ax1.fused, 16)*16) + floormod(ax0.ax1.fused, 16))*5) + ax2)*5) + ax3.inner), 5), 0, floormod(floordiv(floordiv(((((((floordiv(ax0.ax1.fused, 16)*16) + floormod(ax0.ax1.fused, 16))*5) + ax2)*5) + ax3.inner), 5), 5), 16)])*0.0625f32)
+        }
+      }
+    }
+  })
+}
+
+/* For debugging purposes the metadata section has been omitted.
+ * If you would like to see the full metadata section you can set the 
+ * option to `True` when invoking `astext`. 
+ */
+[05:16:24] /home/hht/tvm/src/ir/transform.cc:507: PrintIR():
+#[version = "0.0.5"]
+primfn(placeholder_1: handle, T_identity_1: handle) -> ()
+  attr = {"global_symbol": "fused_copy", "tir.noalias": True}
+  buffers = {T_identity: Buffer(T_identity_2: Pointer(int8), int8, [1, 1, 5, 5, 1, 16], []),
+             placeholder: Buffer(placeholder_2: Pointer(int8), int8, [1, 1, 5, 5, 1, 16], [])}
+  buffer_map = {placeholder_1: placeholder, T_identity_1: T_identity} {
+  attr [T_identity] "realize_scope" = "";
+  realize(T_identity, [0:1, 0:1, 0:5, 0:5, 0:1, 0:16], True {
+    for (ax0.ax1.fused.ax2.fused: int32, 0, 5) "parallel" {
+      for (ax3: int32, 0, 5) {
+        for (ax5.inner: int32, 0, 16) "vectorized" {
+          T_identity[floordiv(ax0.ax1.fused.ax2.fused, 5), 0, floormod(ax0.ax1.fused.ax2.fused, 5), ax3, 0, ax5.inner] = placeholder[floordiv(ax0.ax1.fused.ax2.fused, 5), 0, floormod(ax0.ax1.fused.ax2.fused, 5), ax3, 0, ax5.inner]
+        }
+      }
+    }
+  })
+}
+
+/* For debugging purposes the metadata section has been omitted.
+ * If you would like to see the full metadata section you can set the 
+ * option to `True` when invoking `astext`. 
+ */
+Cannot find config for target=ext_dev -keys=vta,cpu -device=vta -model=sim_1x16_i8w8a32_15_15_18_17, workload=('conv2d_packed.vta', ('TENSOR', (1, 1, 5, 5, 1, 16), 'int8'), ('TENSOR', (1, 1, 3, 3, 16, 16), 'int8'), (1, 1), (1, 1, 1, 1), (1, 1), 'NCHW1n16c', 'int32'). A fallback configuration is used, which may bring great performance regression.
+[05:16:24] /home/hht/tvm/src/ir/transform.cc:507: PrintIR():
+#[version = "0.0.5"]
+primfn(placeholder_2: handle, placeholder_3: handle, T_cast_1: handle) -> ()
+  attr = {"global_symbol": "fused_nn_conv2d_add_right_shift_clip_cast", "tir.noalias": True}
+  buffers = {T_cast: Buffer(T_cast_2: Pointer(int8), int8, [1, 1, 5, 5, 1, 16], []),
+             placeholder: Buffer(placeholder_4: Pointer(int8), int8, [1, 1, 5, 5, 1, 16], []),
+             placeholder_1: Buffer(placeholder_5: Pointer(int8), int8, [1, 1, 3, 3, 16, 16], [])}
+  buffer_map = {placeholder_2: placeholder, placeholder_3: placeholder_1, T_cast_1: T_cast} {
+  attr [T_cast] "realize_scope" = "";
+  realize(T_cast, [0:1, 0:1, 0:5, 0:5, 0:1, 0:16], True {
+    for (ax2.outer: int32, 0, 5) {
+      for (ax3.outer: int32, 0, 5) {
+        attr [res: Buffer(res_1: Pointer(int32), int32, [1, 1, 5, 5, 1, 16], [])] "realize_scope" = "local.acc_buffer";
+        realize(res, [0:1, 0:1, ax2.outer:(ax2.outer + 1), ax3.outer:(ax3.outer + 1), 0:1, 0:16], True {
+           {
+            attr [[local.acc_buffer: Buffer(local.acc_buffer_1: Pointer(int32), int32, [1, 16], [], elem_offset=local.acc_buffer_elem_offset: int32, scope="local.acc_buffer", align=16, offset_factor=16), res]] "buffer_bind_scope" = @tir.tvm_tuple(0, 1, 0, 1, ax2.outer, 1, ax3.outer, 1, 0, 1, 0, 16, dtype=handle);
+            attr [IterVar(vta: int32, (nullptr), "ThreadIndex", "vta")] "coproc_scope" = 2;
+            attr [IterVar(vta, (nullptr), "ThreadIndex", "vta")] "coproc_uop_scope" = "VTAPushGEMMOp";
+            @tir.vta.uop_push(0, 1, @tir.tvm_access_ptr(@tir.type_annotation(, dtype=int32), local.acc_buffer_1, local.acc_buffer_elem_offset, 16, 3, dtype=int32), 0, 0, 0, 0, 0, dtype=int32)
+            attr [pad_data: Buffer(pad_data_1: Pointer(int8), int8, [1, 1, 7, 7, 1, 16], [])] "realize_scope" = "local.inp_buffer";
+            realize(pad_data, [0:1, 0:1, ax2.outer:(ax2.outer + 3), ax3.outer:(ax3.outer + 3), 0:1, 0:16], True {
+              attr [IterVar(i0: int32, (nullptr), "DataPar", "")] "pragma_dma_copy" = 1;
+              for (i2: int32, 0, 3) {
+                for (i3: int32, 0, 3) {
+                  for (i5: int32, 0, 16) {
+                    pad_data[0, 0, (i2 + ax2.outer), (i3 + ax3.outer), 0, i5] = @tir.if_then_else((((((i2 + ax2.outer) >= 1) && ((i2 + ax2.outer) < 6)) && ((i3 + ax3.outer) >= 1)) && ((i3 + ax3.outer) < 6)), placeholder[0, 0, ((i2 + ax2.outer) - 1), ((i3 + ax3.outer) - 1), 0, i5], 0i8, dtype=int8)
+                  }
+                }
+              }
+              attr [placeholder.local.wgt_buffer: Buffer(placeholder.local.wgt_buffer_1: Pointer(int8), int8, [1, 1, 3, 3, 16, 16], [])] "realize_scope" = "local.wgt_buffer";
+              realize(placeholder.local.wgt_buffer, [0:1, 0:1, 0:3, 0:3, 0:16, 0:16], True {
+                attr [IterVar(ax0: int32, (nullptr), "DataPar", "")] "pragma_dma_copy" = 1;
+                for (ax2: int32, 0, 3) {
+                  for (ax3: int32, 0, 3) {
+                    for (ax4: int32, 0, 16) {
+                      for (ax5: int32, 0, 16) {
+                        placeholder.local.wgt_buffer[0, 0, ax2, ax3, ax4, ax5] = placeholder_1[0, 0, ax2, ax3, ax4, ax5]
+                      }
+                    }
+                  }
+                }
+                for (d_j: int32, 0, 3) {
+                  for (d_i: int32, 0, 3) {
+                    attr [[local.inp_buffer: Buffer(local.inp_buffer_1: Pointer(int8), int8, [1, 16], [], elem_offset=local.inp_buffer_elem_offset: int32, scope="local.inp_buffer", align=16, offset_factor=16), pad_data]] "buffer_bind_scope" = @tir.tvm_tuple(0, 1, 0, 1, (ax2.outer + d_i), 1, (ax3.outer + d_j), 1, 0, 1, 0, 16, dtype=handle);
+                    attr [[local.wgt_buffer: Buffer(local.wgt_buffer_1: Pointer(int8), int8, [16, 16], [], elem_offset=local.wgt_buffer_elem_offset: int32, scope="local.wgt_buffer", align=256, offset_factor=256), placeholder.local.wgt_buffer]] "buffer_bind_scope" = @tir.tvm_tuple(0, 1, 0, 1, d_i, 1, d_j, 1, 0, 16, 0, 16, dtype=handle);
+                    attr [[local.acc_buffer, res]] "buffer_bind_scope" = @tir.tvm_tuple(0, 1, 0, 1, ax2.outer, 1, ax3.outer, 1, 0, 1, 0, 16, dtype=handle);
+                    attr [IterVar(vta, (nullptr), "ThreadIndex", "vta")] "coproc_scope" = 2;
+                    attr [IterVar(vta, (nullptr), "ThreadIndex", "vta")] "coproc_uop_scope" = "VTAPushGEMMOp";
+                    @tir.vta.uop_push(0, 0, @tir.tvm_access_ptr(@tir.type_annotation(, dtype=int32), local.acc_buffer_1, local.acc_buffer_elem_offset, 16, 3, dtype=int32), @tir.tvm_access_ptr(@tir.type_annotation(, dtype=int8), local.inp_buffer_1, local.inp_buffer_elem_offset, 16, 1, dtype=int32), @tir.tvm_access_ptr(@tir.type_annotation(, dtype=int8), local.wgt_buffer_1, local.wgt_buffer_elem_offset, 256, 1, dtype=int32), 0, 0, 0, dtype=int32)
+                  }
+                }
+              })
+            })
+          }
+          attr [T_add: Buffer(T_add_1: Pointer(int32), int32, [1, 1, 5, 5, 1, 16], [])] "realize_scope" = "local.acc_buffer";
+          realize(T_add, [0:1, 0:1, ax2.outer:(ax2.outer + 1), ax3.outer:(ax3.outer + 1), 0:1, 0:16], True {
+            attr [IterVar(ax0_1: int32, (nullptr), "DataPar", "")] "pragma_alu" = 1;
+            for (ax5_1: int32, 0, 16) {
+              T_add[0, 0, ax2.outer, ax3.outer, 0, ax5_1] = (res[0, 0, ax2.outer, ax3.outer, 0, ax5_1] + 256)
+            }
+            attr [T_right_shift: Buffer(T_right_shift_1: Pointer(int32), int32, [1, 1, 5, 5, 1, 16], [])] "realize_scope" = "local.acc_buffer";
+            realize(T_right_shift, [0:1, 0:1, ax2.outer:(ax2.outer + 1), ax3.outer:(ax3.outer + 1), 0:1, 0:16], True {
+              attr [IterVar(ax0_2: int32, (nullptr), "DataPar", "")] "pragma_alu" = 1;
+              for (ax5_2: int32, 0, 16) {
+                T_right_shift[0, 0, ax2.outer, ax3.outer, 0, ax5_2] = @tir.shift_right(T_add[0, 0, ax2.outer, ax3.outer, 0, ax5_2], 9, dtype=int32)
+              }
+              attr [clipA: Buffer(clipA_1: Pointer(int32), int32, [1, 1, 5, 5, 1, 16], [])] "realize_scope" = "local.acc_buffer";
+              realize(clipA, [0:1, 0:1, ax2.outer:(ax2.outer + 1), ax3.outer:(ax3.outer + 1), 0:1, 0:16], True {
+                attr [IterVar(i0_1: int32, (nullptr), "DataPar", "")] "pragma_alu" = 1;
+                for (i5_1: int32, 0, 16) {
+                  clipA[0, 0, ax2.outer, ax3.outer, 0, i5_1] = min(T_right_shift[0, 0, ax2.outer, ax3.outer, 0, i5_1], 127)
+                }
+                attr [clipB: Buffer(clipB_1: Pointer(int32), int32, [1, 1, 5, 5, 1, 16], [])] "realize_scope" = "local.acc_buffer";
+                realize(clipB, [0:1, 0:1, ax2.outer:(ax2.outer + 1), ax3.outer:(ax3.outer + 1), 0:1, 0:16], True {
+                  attr [IterVar(i0_2: int32, (nullptr), "DataPar", "")] "pragma_alu" = 1;
+                  for (i5_2: int32, 0, 16) {
+                    clipB[0, 0, ax2.outer, ax3.outer, 0, i5_2] = max(clipA[0, 0, ax2.outer, ax3.outer, 0, i5_2], -127)
+                  }
+                  attr [IterVar(ax1.inner: int32, (nullptr), "DataPar", "")] "pragma_dma_copy" = 1;
+                  for (ax5_3: int32, 0, 16) {
+                    T_cast[0, 0, ax2.outer, ax3.outer, 0, ax5_3] = cast(int8, clipB[0, 0, ax2.outer, ax3.outer, 0, ax5_3])
+                  }
+                })
+              })
+            })
+          })
+        })
+      }
+    }
+  })
+}
+
+/* For debugging purposes the metadata section has been omitted.
+ * If you would like to see the full metadata section you can set the 
+ * option to `True` when invoking `astext`. 
+ */
+[05:16:24] /home/hht/tvm/src/ir/transform.cc:507: PrintIR():
+#[version = "0.0.5"]
+primfn(placeholder_1: handle, T_cast_1: handle) -> ()
+  attr = {"global_symbol": "fused_multiply_reshape_transpose_round_clip_cast", "tir.noalias": True}
+  buffers = {T_cast: Buffer(T_cast_2: Pointer(int8), int8, [1, 1, 5, 5, 1, 16], []),
+             placeholder: Buffer(placeholder_2: Pointer(float32), float32, [1, 16, 5, 5], [])}
+  buffer_map = {placeholder_1: placeholder, T_cast_1: T_cast} {
+  attr [T_cast] "realize_scope" = "";
+  realize(T_cast, [0:1, 0:1, 0:5, 0:5, 0:1, 0:16], True {
+    for (ax0.ax1.fused.ax2.fused: int32, 0, 5) "parallel" {
+      for (ax3: int32, 0, 5) {
+        for (ax5.inner: int32, 0, 16) "vectorized" {
+          T_cast[floordiv(ax0.ax1.fused.ax2.fused, 5), 0, floormod(ax0.ax1.fused.ax2.fused, 5), ax3, 0, ax5.inner] = cast(int8, max(min(@tir.round((placeholder[0, floormod(floordiv(floordiv(((((((((floordiv(ax0.ax1.fused.ax2.fused, 5) + 0) + 0)*16) + ax5.inner)*5) + floormod(ax0.ax1.fused.ax2.fused, 5))*5) + ax3), 5), 5), 16), floormod(floordiv(((((((((floordiv(ax0.ax1.fused.ax2.fused, 5) + 0) + 0)*16) + ax5.inner)*5) + floormod(ax0.ax1.fused.ax2.fused, 5))*5) + ax3), 5), 5), floormod(((((((((floordiv(ax0.ax1.fused.ax2.fused, 5) + 0) + 0)*16) + ax5.inner)*5) + floormod(ax0.ax1.fused.ax2.fused, 5))*5) + ax3), 5)]*16f32), dtype=float32), 127f32), -127f32))
+        }
+      }
+    }
+  })
+}
+
+/* For debugging purposes the metadata section has been omitted.
+ * If you would like to see the full metadata section you can set the 
+ * option to `True` when invoking `astext`. 
+ */
+***************build finished***************
+Module(llvm, 43e5e28)
+There are 1 uops
+[0000]	 acc=0, inp=0, wgt=0
+
+There are 1 uops
+[0000]	 acc=0, inp=0, wgt=0
+
+There are 1 uops
+[0000]	 acc=0, inp=0, wgt=0
+
+There are 1 uops
+[0000]	 acc=0, inp=0, wgt=0
+
+There are 1 uops
+[0000]	 acc=0, inp=0, wgt=0
+
+There are 1 uops
+[0000]	 acc=0, inp=0, wgt=0
+
+There are 236 instructions
+INSTRUCTION 0: NOP-STORE-STAGE
+	dep - pop prev: 0, pop next: 0, push prev: 1, push next: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 1: LOAD UOP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00001400, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 2: GEMM
+	dep - pop prev: 0, pop next: 0, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 3: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000200, SRAM:0x0000
+	y: size=2, pad=[1, 0]
+	x: size=2, stride=5, pad=[1, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 4: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 5: LOAD UOP
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	DRAM: 0x00001401, SRAM:0x0001
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 6: GEMM
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 7: LOAD UOP
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	DRAM: 0x00001402, SRAM:0x0002
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 8: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 9: LOAD UOP
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	DRAM: 0x00001403, SRAM:0x0003
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 10: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 11: LOAD UOP
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	DRAM: 0x00001404, SRAM:0x0004
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 12: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 13: LOAD UOP
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	DRAM: 0x00001405, SRAM:0x0005
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 14: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 15: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000400, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 16: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 17: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000200, SRAM:0x0000
+	y: size=2, pad=[1, 0]
+	x: size=3, stride=5, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 18: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 19: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 20: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 21: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 22: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 23: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 24: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000401, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 25: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 26: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000201, SRAM:0x0000
+	y: size=2, pad=[1, 0]
+	x: size=3, stride=5, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 27: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 28: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 29: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 30: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 31: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 32: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 33: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000402, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 34: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 35: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000202, SRAM:0x0000
+	y: size=2, pad=[1, 0]
+	x: size=3, stride=5, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 36: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 37: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 38: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 39: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 40: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 41: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 42: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000403, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 43: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 44: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000203, SRAM:0x0000
+	y: size=2, pad=[1, 0]
+	x: size=2, stride=5, pad=[0, 1]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 45: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 46: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 47: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 48: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 49: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 50: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 51: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000404, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 52: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 53: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000200, SRAM:0x0000
+	y: size=3, pad=[0, 0]
+	x: size=2, stride=5, pad=[1, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 54: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 55: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 56: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 57: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 58: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 59: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 60: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000405, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 61: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 62: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000200, SRAM:0x0000
+	y: size=3, pad=[0, 0]
+	x: size=3, stride=5, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 63: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 64: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 65: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 66: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 67: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 68: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 69: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000406, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 70: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 71: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000201, SRAM:0x0000
+	y: size=3, pad=[0, 0]
+	x: size=3, stride=5, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 72: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 73: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 74: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 75: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 76: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 77: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 78: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000407, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 79: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 80: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000202, SRAM:0x0000
+	y: size=3, pad=[0, 0]
+	x: size=3, stride=5, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 81: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 82: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 83: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 84: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 85: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 86: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 87: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000408, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 88: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 89: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000203, SRAM:0x0000
+	y: size=3, pad=[0, 0]
+	x: size=2, stride=5, pad=[0, 1]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 90: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 91: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 92: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 93: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 94: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 95: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 96: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000409, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 97: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 98: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000205, SRAM:0x0000
+	y: size=3, pad=[0, 0]
+	x: size=2, stride=5, pad=[1, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 99: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 100: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 101: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 102: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 103: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 104: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 105: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x0000040a, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 106: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 107: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000205, SRAM:0x0000
+	y: size=3, pad=[0, 0]
+	x: size=3, stride=5, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 108: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 109: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 110: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 111: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 112: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 113: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 114: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x0000040b, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 115: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 116: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000206, SRAM:0x0000
+	y: size=3, pad=[0, 0]
+	x: size=3, stride=5, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 117: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 118: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 119: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 120: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 121: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 122: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 123: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x0000040c, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 124: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 125: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000207, SRAM:0x0000
+	y: size=3, pad=[0, 0]
+	x: size=3, stride=5, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 126: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 127: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 128: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 129: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 130: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 131: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 132: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x0000040d, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 133: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 134: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000208, SRAM:0x0000
+	y: size=3, pad=[0, 0]
+	x: size=2, stride=5, pad=[0, 1]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 135: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 136: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 137: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 138: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 139: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 140: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 141: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x0000040e, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 142: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 143: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x0000020a, SRAM:0x0000
+	y: size=3, pad=[0, 0]
+	x: size=2, stride=5, pad=[1, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 144: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 145: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 146: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 147: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 148: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 149: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 150: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x0000040f, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 151: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 152: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x0000020a, SRAM:0x0000
+	y: size=3, pad=[0, 0]
+	x: size=3, stride=5, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 153: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 154: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 155: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 156: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 157: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 158: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 159: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000410, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 160: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 161: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x0000020b, SRAM:0x0000
+	y: size=3, pad=[0, 0]
+	x: size=3, stride=5, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 162: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 163: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 164: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 165: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 166: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 167: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 168: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000411, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 169: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 170: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x0000020c, SRAM:0x0000
+	y: size=3, pad=[0, 0]
+	x: size=3, stride=5, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 171: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 172: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 173: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 174: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 175: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 176: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 177: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000412, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 178: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 179: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x0000020d, SRAM:0x0000
+	y: size=3, pad=[0, 0]
+	x: size=2, stride=5, pad=[0, 1]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 180: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 181: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 182: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 183: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 184: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 185: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 186: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000413, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 187: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 188: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x0000020f, SRAM:0x0000
+	y: size=2, pad=[0, 1]
+	x: size=2, stride=5, pad=[1, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 189: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 190: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 191: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 192: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 193: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 194: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 195: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000414, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 196: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 197: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x0000020f, SRAM:0x0000
+	y: size=2, pad=[0, 1]
+	x: size=3, stride=5, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 198: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 199: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 200: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 201: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 202: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 203: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 204: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000415, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 205: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 206: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000210, SRAM:0x0000
+	y: size=2, pad=[0, 1]
+	x: size=3, stride=5, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 207: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 208: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 209: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 210: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 211: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 212: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 213: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000416, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 214: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 215: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000211, SRAM:0x0000
+	y: size=2, pad=[0, 1]
+	x: size=3, stride=5, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 216: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 217: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 218: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 219: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 220: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 221: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 222: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000417, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 223: GEMM
+	dep - pop prev: 0, pop next: 1, push prev: 1, push next: 0
+	reset_out: 1
+	range (0, 1)
+	outer loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	inner loop - iter: 1, wgt: 0, inp: 0, acc: 0
+	l2g_queue = 0, g2l_queue = 1
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 224: LOAD INP
+	dep - pop prev: 0, pop next: 1, push prev: 0, push next: 0
+	DRAM: 0x00000212, SRAM:0x0000
+	y: size=2, pad=[0, 1]
+	x: size=2, stride=5, pad=[0, 1]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 225: LOAD WGT
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	DRAM: 0x00000030, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=9, stride=9, pad=[0, 0]
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 226: GEMM
+	dep - pop prev: 1, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (1, 2)
+	outer loop - iter: 3, wgt: 1, inp: 1, acc: 0
+	inner loop - iter: 3, wgt: 3, inp: 3, acc: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 227: ALU - add imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (2, 3)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 228: ALU - shr
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (3, 4)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 229: ALU - min imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 0
+	reset_out: 0
+	range (4, 5)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 0
+INSTRUCTION 230: ALU - max imm
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	reset_out: 0
+	range (5, 6)
+	outer loop - iter: 1, dst: 0, src: 0
+	inner loop - iter: 1, dst: 0, src: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 0, g2s_queue = 1
+INSTRUCTION 231: STORE:
+	dep - pop prev: 1, pop next: 0, push prev: 1, push next: 0
+	DRAM: 0x00000418, SRAM:0x0000
+	y: size=1, pad=[0, 0]
+	x: size=1, stride=1, pad=[0, 0]
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 232: NOP-STORE-STAGE
+	dep - pop prev: 0, pop next: 0, push prev: 1, push next: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 2, g2s_queue = 0
+INSTRUCTION 233: NOP-MEMORY-STAGE
+	dep - pop prev: 0, pop next: 0, push prev: 0, push next: 1
+	l2g_queue = 1, g2l_queue = 0
+	s2g_queue = 2, g2s_queue = 0
+INSTRUCTION 234: NOP-COMPUTE-STAGE
+	dep - pop prev: 1, pop next: 1, push prev: 0, push next: 0
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
+INSTRUCTION 235: FINISH
+	l2g_queue = 0, g2l_queue = 0
+	s2g_queue = 1, g2s_queue = 0
