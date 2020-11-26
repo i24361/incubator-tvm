@@ -1,4 +1,4 @@
-# Licensed to the Apache Software Foundation (ASF) under one
+""# Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
@@ -70,6 +70,24 @@ from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
 from tvm.contrib.util import tempdir
 import tvm.contrib.graph_runtime as runtime
 
+import os
+from mxnet.gluon.model_zoo import vision
+import numpy as np
+from PIL import Image
+
+import topi
+import tvm
+from tvm import te
+from tvm import rpc, autotvm, relay, topi
+from tvm.contrib import graph_runtime, util, download
+from tvm.autotvm.measure.measure_methods import request_remote
+from tvm.autotvm.tuner import XGBTuner, GATuner, RandomTuner, GridSearchTuner
+
+import vta
+from vta.testing import simulator
+from vta.top import graph_pack
+from gluoncv import model_zoo, data, utils
+
 #################################################################
 # Define network
 # --------------
@@ -80,41 +98,42 @@ import tvm.contrib.graph_runtime as runtime
 
 def get_network(name, batch_size):
     """Get the symbol definition and random weight of a network"""
-    input_shape = (batch_size, 3, 224, 224)
+    input_shape = (batch_size, 3, 512, 512)
     output_shape = (batch_size, 1000)
+    # Populate the shape and data type dictionary
+    model = "faster_rcnn_resnet50_v1b_voc"
+    start_pack = "nn.max_pool2d"
+    stop_pack = "cast"
+    dtype_dict = {"data": "float32"}
+    shape_dict = {"data": (batch_size, 3, 512, 512)}
 
-    if "resnet" in name:
-        n_layer = int(name.split("-")[1])
-        mod, params = relay.testing.resnet.get_workload(
-            num_layers=n_layer, batch_size=batch_size, dtype=dtype
-        )
-    elif "vgg" in name:
-        n_layer = int(name.split("-")[1])
-        mod, params = relay.testing.vgg.get_workload(
-            num_layers=n_layer, batch_size=batch_size, dtype=dtype
-        )
-    elif name == "mobilenet":
-        mod, params = relay.testing.mobilenet.get_workload(batch_size=batch_size)
-    elif name == "squeezenet_v1.1":
-        mod, params = relay.testing.squeezenet.get_workload(
-            batch_size=batch_size, version="1.1", dtype=dtype
-        )
-    elif name == "inception_v3":
-        input_shape = (1, 3, 299, 299)
-        mod, params = relay.testing.inception_v3.get_workload(batch_size=batch_size, dtype=dtype)
-    elif name == "mxnet":
-        # an example for mxnet model
-        from mxnet.gluon.model_zoo.vision import get_model
+    # Get off the shelf gluon model, and convert to relay
+    gluon_model = model_zoo.get_model(model, pretrained=True)
+    mod, params = relay.frontend.from_mxnet(gluon_model, shape_dict)
 
-        block = get_model("resnet18_v1", pretrained=True)
-        mod, params = relay.frontend.from_mxnet(block, shape={"data": input_shape}, dtype=dtype)
-        net = mod["main"]
-        net = relay.Function(
-            net.params, relay.nn.softmax(net.body), None, net.type_params, net.attrs
-        )
-        mod = tvm.IRModule.from_expr(net)
-    else:
-        raise ValueError("Unsupported network: " + name)
+    # Update shape and type dictionary
+    shape_dict.update({k: v.shape for k, v in params.items()})
+    dtype_dict.update({k: str(v.dtype) for k, v in params.items()})
+
+    # Perform quantization in Relay
+    # Note: We set opt_level to 3 in order to fold batch norm
+    # with tvm.transform.PassContext(opt_level=3):
+    #     with relay.quantize.qconfig(global_scale=8.0, skip_conv_layers=[0]):
+    #         mod = relay.quantize.quantize(mod, params=params)
+
+    # # Perform graph packing and constant folding for VTA target
+    # if target.device_name == "vta":
+    #     assert env.BLOCK_IN == env.BLOCK_OUT
+    #     mod = graph_pack(
+    #         mod["main"],
+    #         env.BATCH,
+    #         env.BLOCK_OUT,
+    #         env.WGT_WIDTH,
+    #         start_name=start_pack,
+    #         stop_name=stop_pack,
+    #         start_name_idx=3,
+    #         stop_name_idx=388
+    #     )
 
     return mod, params, input_shape, output_shape
 
@@ -209,7 +228,7 @@ device_key = "rk3399"
 use_android = False
 
 #### TUNING OPTION ####
-network = "resnet-18"
+network = "faster_rcnn_resnet50_v1b_voc"
 log_file = "%s.%s.log" % (device_key, network)
 dtype = "float32"
 
@@ -313,11 +332,24 @@ def tune_tasks(
 def tune_and_evaluate(tuning_opt):
     # extract workloads from relay program
     print("Extract tasks...")
-    mod, params, input_shape, _ = get_network(network, batch_size=1)
+    mod, params, input_shape, _ = get_network(network, 1)
     tasks = autotvm.task.extract_from_program(
         mod["main"], target=target, params=params, ops=(relay.op.get("nn.conv2d"),)
     )
+    tasks = list(filter(lambda t: t.args[0][1] == (1, 3, 512, 512), tasks))
 
+    # We should have extracted 10 convolution tasks
+    # assert len(tasks) == 10
+    print("Extracted {} conv2d tasks:".format(len(tasks)))
+    for tsk in tasks:
+        inp = tsk.args[0][1]
+        wgt = tsk.args[1][1]
+        print(
+            "({}, {})".format(
+                inp,
+                wgt
+            )
+        )
     # run tuning tasks
     print("Tuning...")
     tune_tasks(tasks, **tuning_opt)
@@ -364,7 +396,7 @@ def tune_and_evaluate(tuning_opt):
 # We do not run the tuning in our webpage server since it takes too long.
 # Uncomment the following line to run it by yourself.
 
-# tune_and_evaluate(tuning_option)
+tune_and_evaluate(tuning_option)
 
 ######################################################################
 # Sample Output

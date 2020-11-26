@@ -175,7 +175,9 @@ class GraphModuleDebug(graph_runtime.GraphModule):
         Time consumed for each execution will be set as debug output.
 
         """
-        self.debug_datum._time_list = [[float(t) * 1e-6] for t in self.run_individual(10, 1, 1)]
+        print("run_individual")
+        self.debug_datum._time_list = [[float(t) * 1e-6] for t in self.run_individual(1, 1, 1)]
+        print("run_finish")
         for i, node in enumerate(self.debug_datum.get_graph_nodes()):
             num_outputs = self.debug_datum.get_graph_node_output_num(node)
             for j in range(num_outputs):
@@ -222,12 +224,16 @@ class GraphModuleDebug(graph_runtime.GraphModule):
             self.set_input(**input_dict)
 
         # Step 1. Execute the graph
+        print("Step 1. Execute the graph")
         self._run_debug()
         # Step 2. Dump the output tensors to the dump folder
-        self.debug_datum.dump_output_tensor()
+        print("Step 2. Dump the output tensors to the dump folder")
+        # self.debug_datum.dump_output_tensor()
         # Step 3. Dump the Chrome trace to the dump folder
-        self.debug_datum.dump_chrome_trace()
+        print("Step 3. Dump the Chrome trace to the dump folder")
+        # self.debug_datum.dump_chrome_trace()
         # Step 4. Display the collected information
+        print("Step 4. Display the collected information")
         self.debug_datum.display_debug_result()
 
     def run_individual(self, number, repeat=1, min_repeat_ms=0):
