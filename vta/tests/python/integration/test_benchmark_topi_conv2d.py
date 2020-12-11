@@ -60,18 +60,30 @@ env = vta.get_env()
 
 # ResNet18 workloads
 resnet_wkls = [
-    # Workloads of resnet18 on imagenet
+    # Workloads on Faster R-CNN
     # ('C1',  Workload(env.BATCH, 224, 224, 3,   64,  7, 7, 3, 3, 2, 2)),
-    ("C2", Workload(env.BATCH, 56, 56, 64, 64, 3, 3, 1, 1, 1, 1)),
-    ("C3", Workload(env.BATCH, 56, 56, 64, 128, 3, 3, 1, 1, 2, 2)),
-    ("C4", Workload(env.BATCH, 56, 56, 64, 128, 1, 1, 0, 0, 2, 2)),
-    ("C5", Workload(env.BATCH, 28, 28, 128, 128, 3, 3, 1, 1, 1, 1)),
-    ("C6", Workload(env.BATCH, 28, 28, 128, 256, 3, 3, 1, 1, 2, 2)),
-    ("C7", Workload(env.BATCH, 28, 28, 128, 256, 1, 1, 0, 0, 2, 2)),
-    ("C8", Workload(env.BATCH, 14, 14, 256, 256, 3, 3, 1, 1, 1, 1)),
-    ("C9", Workload(env.BATCH, 14, 14, 256, 512, 3, 3, 1, 1, 2, 2)),
-    ("C10", Workload(env.BATCH, 14, 14, 256, 512, 1, 1, 0, 0, 2, 2)),
-    ("C11", Workload(env.BATCH, 7, 7, 512, 512, 3, 3, 1, 1, 1, 1)),
+    ("C2", Workload(1, 7, 7, 512, 2048, 1, 1, 0, 0, 1, 1)),
+    ("C3", Workload(1, 7, 7, 512, 512, 3, 3, 1, 1, 1, 1)),
+    ("C4", Workload(1, 7, 7, 2048, 512, 1, 1, 0, 0, 1, 1)),
+    ("C5", Workload(1, 14, 14, 512, 512, 3, 3, 1, 1, 2, 2)),
+    ("C6", Workload(1, 14, 14, 1024, 512, 1, 1, 0, 0, 1, 1)),
+    ("C7", Workload(1, 32, 32, 256, 1024, 1, 1, 0, 0, 1, 1)),
+    ("C8", Workload(1, 32, 32, 256, 256, 3, 3, 1, 1, 1, 1)),
+    ("C9", Workload(1, 32, 32, 1024, 256, 1, 1, 0, 0, 1, 1)),
+    ("C10", Workload(1, 64, 64, 256, 256, 3, 3, 1, 1, 2, 2)),
+    ("C11", Workload(1, 64, 64, 512, 256, 1, 1, 0, 0, 1, 1)),
+    ("C12", Workload(1, 64, 64, 128, 512, 1, 1, 0, 0, 1, 1)),
+    ("C13", Workload(1, 64, 64, 128, 128, 3, 3, 1, 1, 1, 1)),
+    ("C14", Workload(1, 64, 64, 512, 128, 1, 1, 0, 0, 1, 1)),
+    ("C15", Workload(1, 128, 128, 128, 128, 3, 3, 1, 1, 2, 2)),
+    ("C16", Workload(1, 128, 128, 256, 128, 1, 1, 0, 0, 1, 1)),
+    ("C17", Workload(1, 128, 128, 64, 256, 1, 1, 0, 0, 1, 1)),
+    ("C18", Workload(1, 128, 128, 64, 64, 3, 3, 1, 1, 1, 1)),
+    ("C19", Workload(1, 128, 128, 256, 64, 1, 1, 0, 0, 1, 1)),
+    ("C20", Workload(1, 128, 128, 64, 64, 1, 1, 0, 0, 1, 1)),
+    ("C21", Workload(1, 128, 128, 256, 512, 1, 1, 0, 0, 2, 2)),
+    ("C22", Workload(1, 64, 64, 512, 1024, 1, 1, 0, 0, 2, 2)),
+    ("C23", Workload(1, 14, 14, 1024, 2048, 1, 1, 0, 0, 2, 2)),
 ]
 
 # FIXME: we need a custom clip operator to circumvent a pattern detection limitation
@@ -290,7 +302,7 @@ def run_conv2d(env, remote, wl, target, check_correctness=True, print_ir=False, 
 @pytest.mark.parametrize("device", ["vta", "arm_cpu"])
 def test_conv2d(device):
     def _run(env, remote):
-        if device == "vta":
+        if device == "vta fallback":
             target = env.target
             if env.TARGET not in ["sim", "tsim"]:
                 assert tvm.runtime.enabled("rpc")
@@ -298,13 +310,24 @@ def test_conv2d(device):
                 reconfig_runtime(remote)
             with autotvm.tophub.context(target):  # load pre-tuned schedule parameters
                 for id, wl in resnet_wkls:
-                    print("vta", id, wl)
+                    print("vta before tuning", id, wl)
+                    run_conv2d(env, remote, wl, target)
+        elif device == "vta":
+            target = env.target
+            if env.TARGET not in ["sim", "tsim"]:
+                assert tvm.runtime.enabled("rpc")
+                program_fpga(remote, bitstream=None)
+                reconfig_runtime(remote)
+            with autotvm.tophub.context(target, extra_files=
+                ['/home/hht/workspace/tvm_workspace/my.log']):   # load pre-tuned schedule parameters
+                for id, wl in resnet_wkls:
+                    print("vta after tuning", id, wl)
                     run_conv2d(env, remote, wl, target)
         elif device == "arm_cpu":
             target = env.target_vta_cpu
             with autotvm.tophub.context(target):  # load pre-tuned schedule parameters
                 for id, wl in resnet_wkls:
-                    print("arm", id, wl)
+                    print("arm cpu", id, wl)
                     run_conv2d(env, remote, wl, target)
 
 
@@ -313,4 +336,5 @@ def test_conv2d(device):
 
 if __name__ == "__main__":
     test_conv2d(device="arm_cpu")
+    # test_conv2d(device="vta fallback")
     test_conv2d(device="vta")
