@@ -899,11 +899,22 @@ class CommandQueue {
   void InitSpace() {
     uop_queue_.InitSpace();
     insn_queue_.InitSpace();
-    device_ = VTADeviceAlloc();
-    CHECK(device_ != nullptr);
+    /*!
+     * TODO Support determinating loop count by reading vta_config.json
+     */
+    for(int i = 0; i < 8; ++i) {
+      VTADeviceHandle device = VTADeviceAlloc();
+      CHECK(device != nullptr);
+      printf("%ld ", (long int)device);
+      printf("\n");
+      devices_.push_back(device);
+    }  
   }
 
-  ~CommandQueue() { VTADeviceFree(device_); }
+  ~CommandQueue() { 
+    for(VTADeviceHandle device : devices_)
+      VTADeviceFree(device); 
+  }
 
   uint32_t GetElemBytes(uint32_t memory_id) {
     uint32_t elem_bytes = 0;
@@ -993,6 +1004,9 @@ class CommandQueue {
   }
 
   void Synchronize(uint32_t wait_cycles) {
+    static int enter_count = -1;
+    ++enter_count;
+    std::cout << enter_count << std::endl;
     // Insert dependences to force serialization
     if (debug_flag_ & VTA_DEBUG_FORCE_SERIAL) {
       insn_queue_.RewriteForceSerial();
@@ -1024,7 +1038,7 @@ class CommandQueue {
     // Make sure that we don't exceed contiguous physical memory limits
     CHECK(insn_queue_.count() * sizeof(VTAGenericInsn) < VTA_MAX_XFER);
     int timeout =
-        VTADeviceRun(device_, insn_queue_.dram_phy_addr(), insn_queue_.count(), wait_cycles);
+        VTADeviceRun(devices_[enter_count%8], insn_queue_.dram_phy_addr(), insn_queue_.count(), wait_cycles);
     CHECK_EQ(timeout, 0);
     // Reset buffers
     uop_queue_.Reset();
@@ -1187,7 +1201,7 @@ class CommandQueue {
   // instruction queue
   InsnQueue<VTA_MAX_XFER, kBufferCoherent, kAlwaysCache> insn_queue_;
   // Device handle
-  VTADeviceHandle device_{nullptr};
+  std::vector<VTADeviceHandle> devices_;
 };
 
 }  // namespace vta
