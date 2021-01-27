@@ -177,7 +177,7 @@ with autotvm.tophub.context(target):
             with relay.quantize.qconfig(global_scale=8.0, skip_conv_layers=[0]):
                 mod = relay.quantize.quantize(mod, params=params)
             # Perform graph packing and constant folding for VTA target
-            # assert env.BLOCK_IN == env.BLOCK_OUT
+            assert env.BLOCK_IN == env.BLOCK_OUT
             relay_prog = graph_pack(
                 mod["main"],
                 env.BATCH,
@@ -220,7 +220,7 @@ with autotvm.tophub.context(target):
 # and an input test image.
 
 # Download ImageNet categories
-categ_url = "https://github.com/uwsampl/web-data/raw/main/vta/models/"
+categ_url = "https://github.com/uwsampl/web-data/raw/master/vta/models/"
 categ_fn = "synset.txt"
 download.download(join(categ_url, categ_fn), categ_fn)
 synset = eval(open(categ_fn).read())

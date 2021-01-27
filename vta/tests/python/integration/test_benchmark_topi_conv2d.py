@@ -21,7 +21,6 @@ import json
 import os
 
 import pytest
-import pdb
 import numpy as np
 from collections import namedtuple
 
@@ -308,6 +307,5 @@ def test_conv2d(device):
 
 
 if __name__ == "__main__":
-    # test_conv2d(device="arm_cpu")
+    test_conv2d(device="arm_cpu")
     test_conv2d(device="vta")
-    # pdb.set_trace()
