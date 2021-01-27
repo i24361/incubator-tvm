@@ -37,6 +37,7 @@
 #include <memory>
 #include <vector>
 
+
 namespace vta {
 
 // Avoid bad configurations.
@@ -905,8 +906,7 @@ class CommandQueue {
     for(int i = 0; i < 8; ++i) {
       VTADeviceHandle device = VTADeviceAlloc();
       CHECK(device != nullptr);
-      printf("%ld ", (long int)device);
-      printf("\n");
+      // std::cout << "Device addr: " << device << std::endl;
       devices_.push_back(device);
     }  
   }
@@ -1006,7 +1006,7 @@ class CommandQueue {
   void Synchronize(uint32_t wait_cycles) {
     static int enter_count = -1;
     ++enter_count;
-    std::cout << enter_count << std::endl;
+    // std::cout << "Sync count: " << enter_count << std::endl;
     // Insert dependences to force serialization
     if (debug_flag_ & VTA_DEBUG_FORCE_SERIAL) {
       insn_queue_.RewriteForceSerial();
@@ -1027,6 +1027,23 @@ class CommandQueue {
     // Synchronization for the queues
     uop_queue_.AutoReadBarrier();
     insn_queue_.AutoReadBarrier();
+    /* TODO
+     * Insn reorder
+     */
+    union VTAInsn c;
+    // Iterate over all instructions
+    int insn_count = insn_queue_.count();
+    int loaduop_count = 0;
+    VTAGenericInsn* insn_array = insn_queue_.data();
+    for (int i = 0; i < insn_count; ++i) {
+      c.generic = insn_array[i];
+      if (c.mem.opcode == VTA_OPCODE_LOAD && c.mem.memory_type == VTA_MEM_ID_UOP) {
+        for (int j = i; j > loaduop_count; --j) {
+          std::swap(insn_array[j], insn_array[j-1]);
+        }
+        ++loaduop_count;
+      }
+    }
     // Dump instructions if debug enabled
     if (debug_flag_ & VTA_DEBUG_DUMP_INSN) {
       insn_queue_.DumpInsn();
@@ -1193,7 +1210,7 @@ class CommandQueue {
   void AutoSync() { this->Synchronize(1 << 31); }
 
   // Internal debug flag
-  int debug_flag_{0};
+  int debug_flag_{0x0};//0x6
   // The kernel we are currently recording
   UopKernel* record_kernel_{nullptr};
   // Micro op queue
